@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.joefkelley</groupId>
 	<artifactId>hadoop-matrix-mult</artifactId>
-	<version>0.0.1</version>
+	<version>1.0</version>
 	<properties>
 		<scala.version>2.11.6</scala.version>
 	</properties>
@@ -85,13 +85,11 @@
 				<artifactId>maven-shade-plugin</artifactId>
 				<version>2.3</version>
 				<configuration>
-					<!--
 					<transformers>
 						<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-							<mainClass>com.ancestry.bigtree.markovcluster.scalding.JobRunner</mainClass>
+							<mainClass>com.joefkelley.matrix.MRMultiply</mainClass>
 						</transformer>
 					</transformers>
-				    -->
 					<artifactSet>
 						<!-- cluster will already have hadoop jars installed -->
 						<excludes>
