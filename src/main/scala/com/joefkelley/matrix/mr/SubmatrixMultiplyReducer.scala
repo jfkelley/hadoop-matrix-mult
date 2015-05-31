@@ -1,12 +1,14 @@
 package com.joefkelley.matrix.mr
 
-import org.apache.hadoop.mapreduce.Reducer
+import scala.collection.JavaConversions.iterableAsScalaIterable
+import scala.collection.mutable.ArrayBuffer
 import org.apache.hadoop.io.NullWritable
 import org.apache.hadoop.io.Text
-import scala.collection.mutable.ArrayBuffer
+import org.apache.hadoop.mapreduce.Reducer
+import com.joefkelley.matrix.CompressedMatrixMultiply
 import com.joefkelley.matrix.MatrixBuilder
 import com.joefkelley.matrix.MatrixElement
-import com.joefkelley.matrix.CompressedMatrixMultiply
+import com.joefkelley.matrix.MRMultiply
 
 class SubmatrixMultiplyReducer extends Reducer[IntTripleWritable, MatrixElementWritable, Text, NullWritable] {
   
@@ -14,8 +16,20 @@ class SubmatrixMultiplyReducer extends Reducer[IntTripleWritable, MatrixElementW
   
   val outputKey = new Text
   
+  var oneMR = false
+  val cache = scala.collection.mutable.Map.empty[(String, String), Double]
+  
+  override def setup(context: Context): Unit = {
+    oneMR = context.getConfiguration().getBoolean(MRMultiply.ONE_MR_CONF_FLAG, false)
+  }
+  
+  override def cleanup(context: Context): Unit = {
+    for (((row, col), value) <- cache) {
+      output(row, col, value, context)
+    }
+  }
+  
   override def reduce(key: IntTripleWritable, vals: java.lang.Iterable[MatrixElementWritable], context: Context): Unit = {
-    System.out.println("Starting reduce key: " + key)
     import scala.collection.JavaConversions.iterableAsScalaIterable
     val leftEdges = new ArrayBuffer[(String, String, Double)]
     val rightEdges = new ArrayBuffer[(String, String, Double)]
@@ -31,19 +45,13 @@ class SubmatrixMultiplyReducer extends Reducer[IntTripleWritable, MatrixElementW
     }
     
     val intersection = leftEdges.map(_._2).toSet & rightEdges.map(_._1).toSet
-    System.out.println(s"Intersection of keys = $intersection")
     val leftIncludedEdges = leftEdges.filter(e => intersection.contains(e._2))
-    System.out.println(s"Left included edges = $leftIncludedEdges")
     val rightIncludedEdges = rightEdges.filter(e => intersection.contains(e._1))
-    System.out.println(s"Right included edges = $rightIncludedEdges")
     
     val leftRows = leftIncludedEdges.map(_._1).toSet.toVector
-    System.out.println(s"Left rows = $leftRows")
     val leftCols = intersection.toVector
-    System.out.println(s"Left cols = $leftCols")
     val rightRows = leftCols
     val rightCols = rightIncludedEdges.map(_._2).toSet.toVector
-    System.out.println(s"Right cols = $rightCols")
     
     val leftRowMap = leftRows.zipWithIndex.toMap
     val leftColMap = leftCols.zipWithIndex.toMap
@@ -61,11 +69,25 @@ class SubmatrixMultiplyReducer extends Reducer[IntTripleWritable, MatrixElementW
     val result = CompressedMatrixMultiply.multiply(left, right)
     
     for (element <- result) {
-      val asTsv = s"${leftRows(element.row)}\t${rightCols(element.col)}\t${element.value}"
-      System.out.println(s"outputting: $asTsv")
-      outputKey.set(asTsv)
-      context.write(outputKey, NullWritable.get)
+      val row = leftRows(element.row)
+      val col = rightCols(element.col)
+      val value = element.value
+      if (oneMR) {
+        updateCache(row, col, value)
+      } else {
+        output(row, col, value, context)
+      }
     }
+  }
+  
+  private[this] def output(row: String, col: String, value: Double, context: Context) {
+    val asTsv = s"$row\t$col\t$value"
+    outputKey.set(asTsv)
+    context.write(outputKey, NullWritable.get)
+  }
+  
+  private[this] def updateCache(row: String, col: String, value: Double) {
+    cache.update((row, col), cache.getOrElse((row, col), 0.0) + value)
   }
   
 }
