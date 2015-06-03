@@ -36,10 +36,8 @@ class SubmatrixMultiplyReducer extends Reducer[IntTripleWritable, MatrixElementW
     for (element <- vals) {
       val extracted = (element.row.toString, element.col.toString, element.value.get)
       if (element.isLeft.get) {
-        System.out.println(s"Reducer received left element: $extracted")
         leftEdges += extracted
       } else {
-        System.out.println(s"Reducer received right element: $extracted")
         rightEdges += extracted
       }
     }

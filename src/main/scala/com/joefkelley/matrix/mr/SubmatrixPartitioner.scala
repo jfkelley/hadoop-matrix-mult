@@ -19,7 +19,7 @@ class SubmatrixPartitioner extends Partitioner[IntTripleWritable, MatrixElementW
   // submatrix products with the same i, k should tend to same reducer
   override def getPartition(key: IntTripleWritable, value: MatrixElementWritable, nReduceTasks: Int): Int = {
     val (i, j, k) = (key._1.get, key._2.get, key._3.get)
-    val x = j * nDivs * nDivs + i * nDivs + k
+    val x = i * nDivs * nDivs + k * nDivs + j
     x * nReduceTasks / (nDivs * nDivs * nDivs)
   }
   
