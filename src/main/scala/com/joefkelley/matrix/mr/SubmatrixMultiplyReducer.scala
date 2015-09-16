@@ -9,18 +9,26 @@ import com.joefkelley.matrix.CompressedMatrixMultiply
 import com.joefkelley.matrix.MatrixBuilder
 import com.joefkelley.matrix.MatrixElement
 import com.joefkelley.matrix.MRMultiply
+import org.apache.hadoop.io.DoubleWritable
 
 class SubmatrixMultiplyReducer extends Reducer[IntTripleWritable, MatrixElementWritable, Text, NullWritable] {
   
   private type Context = Reducer[IntTripleWritable, MatrixElementWritable, Text, NullWritable]#Context
   
   val outputKey = new Text
+  val outputRow = new Text
+  val outputCol = new Text
+  val outputValue = new DoubleWritable
+  var outputConverter: MatrixElementToLine = _
   
   var oneMR = false
   val cache = scala.collection.mutable.Map.empty[(String, String), Double]
   
   override def setup(context: Context): Unit = {
     oneMR = context.getConfiguration().getBoolean(MRMultiply.ONE_MR_CONF_FLAG, false)
+    val outputConverterClass = context.getConfiguration().getClass(MRMultiply.OUTPUT_CONVERTER_KEY, classOf[TSVMatrixElementToLine], classOf[MatrixElementToLine])
+    outputConverter = outputConverterClass.newInstance()
+    outputConverter.setConf(context.getConfiguration)
   }
   
   override def cleanup(context: Context): Unit = {
@@ -79,8 +87,10 @@ class SubmatrixMultiplyReducer extends Reducer[IntTripleWritable, MatrixElementW
   }
   
   private[this] def output(row: String, col: String, value: Double, context: Context) {
-    val asTsv = s"$row\t$col\t$value"
-    outputKey.set(asTsv)
+    outputRow.set(row)
+    outputCol.set(col)
+    outputValue.set(value)
+    outputConverter.setLine(outputRow, outputCol, outputValue, outputKey)
     context.write(outputKey, NullWritable.get)
   }
   

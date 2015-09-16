@@ -8,6 +8,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.io.Text
+import com.joefkelley.matrix.MRMultiply
 
 class MatrixInputFormat(isLeft: Boolean) extends FileInputFormat[NullWritable, MatrixElementWritable] {
   
@@ -17,18 +18,19 @@ class MatrixInputFormat(isLeft: Boolean) extends FileInputFormat[NullWritable, M
     val textRecordReader = textInput.createRecordReader(split, context)
     val mElement = new MatrixElementWritable()
     mElement.isLeft.set(isLeft)
+    
+    val inputConverterClass = context.getConfiguration().getClass(MRMultiply.INPUT_CONVERTER_KEY, classOf[TSVRowToMatrixElement], classOf[LineToMatrixElement])
+    val inputConverter = inputConverterClass.newInstance()
+    inputConverter.setConf(context.getConfiguration())
+    
     new MappedRecordReader[LongWritable, Text, NullWritable, MatrixElementWritable](
         textRecordReader,
         NullWritable.get,
         mElement,
         (_, _, n) => n,
         (_, line, m) => {
-          line.toString().split('\t') match { case Array(r, c, v) =>
-            m.row.set(r)
-            m.col.set(c)
-            m.value.set(v.toDouble)
-            m
-          }
+          inputConverter.setRowColValue(line, m.row, m.col, m.value)
+          m
         })
   }
   

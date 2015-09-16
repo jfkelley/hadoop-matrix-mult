@@ -31,6 +31,8 @@ Argument | Description | Example
 `--output [path]` | The directory to store the output into | `--output hdfs:///user/hadoop/matrix_C`
 `--nDivs [int]` | The number of submatrixes to divide each input matrix into | `--nDivs 20`
 `--oneMR` | If present, executes the job in a single MR pass instead of two. Requires nDivs^2 = number of reduce tasks | `--oneMR`
+`--inputConverter` | The class (extending com.joefkelley.matrix.mr.LineToMatrixElement) to use for converting input lines into matrix elements | `--inputConverter my.custom.LineToMatrixElement`
+`--outputConverter` | The class (extending com.joefkelley.matrix.mr.MatrixElementToLine) to use for converting matrix elements to output lines | `--outputConverter my.custom.MatrixElementToLine`
 
 The argument `--nDivs` is a bit tricky to explain; my [blog post](http://www.joefkelley.com/?p=853) has the full details of its implications. But the take-aways are this:
 
@@ -55,15 +57,30 @@ Note that values for row and column need not be ints. They can be any unique id.
 
 Of course, if it is simpler not to think about it that way, regular integer indexes will work just fine too.
 
+If your input data is not TSV, but is some other text-file-based format, you can provide custom input/output converters: essentially functions `Line => (Row, Col, Value)` and `(Row, Col, Value) => Line`. Your classes should extend `com.joefkelley.matrix.mr.LineToMatrixElement` and `com.joefkelley.matrix.mr.MatrixElementToLine`, respectively. The only methods to override have signatures:
+
+`def setRowColValue(line: Text, row: Text, col: Text, value: DoubleWritable): Unit`
+
+and
+
+`def setLine(row: Text, col: Text, value: DoubleWritable, line: Text): Unit`
+
+The base traits extend Configured, so you can also access the MR job's configuration via `getConf()`.
+
+Then simply provide the fully-qualified names of those classes to the respective command-line args.
+
 
 ### Planned future improvements
 
-* Allow configurable input/output formats
+* Allow even-more configurable input/output formats (non-text-based)
 * Intelligently calculate nDivs by default. This could maybe be done by inspecting reducer memory settings and doing some calculations based on that and the total input data volume.
 * Investigate whether Strassen's algorithm or other matrix multiplication algorithms would actually speed up submatrix multiplication.
 * Improve the push of phase-2 combiner/reducer logic into phase-1's reduce so that it can be done partially and does not require special combination of settings or using only a single MR job.
 
 ### Change Log
+
+#### 1.2
+* Added custom input/output converters
 
 #### 1.1
 * Switched from maven to sbt

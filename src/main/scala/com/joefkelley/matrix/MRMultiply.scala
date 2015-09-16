@@ -27,17 +27,21 @@ import java.util.UUID
 object MRMultiply extends Configured with Tool {
   
   final val ONE_MR_CONF_FLAG = "matrix.multiply.one.mr"
+  final val INPUT_CONVERTER_KEY = "matrix.multiply.input.converter"
+  final val OUTPUT_CONVERTER_KEY = "matrix.multiply.output.converter"
   
   private final val Log: Logger = Logger.getLogger(this.getClass)
   
   override def run(args: Array[String]): Int = {
     def parse(args: List[String], soFar: Map[String, String]): Map[String, String] = args match {
       case Nil => soFar
-      case "--left"   :: left   :: rest => parse(rest, soFar + ("left" ->   left))
-      case "--right"  :: right  :: rest => parse(rest, soFar + ("right" ->  right))
-      case "--output" :: output :: rest => parse(rest, soFar + ("output" -> output))
-      case "--nDivs"  :: nDivs  :: rest => parse(rest, soFar + ("nDivs" ->  nDivs))
-      case "--oneMR"            :: rest => parse(rest, soFar + ("oneMR" ->  "true"))
+      case "--left"            :: left       :: rest => parse(rest, soFar + ("left" ->       left))
+      case "--right"           :: right      :: rest => parse(rest, soFar + ("right" ->      right))
+      case "--output"          :: output     :: rest => parse(rest, soFar + ("output" ->     output))
+      case "--nDivs"           :: nDivs      :: rest => parse(rest, soFar + ("nDivs" ->      nDivs))
+      case "--oneMR"                         :: rest => parse(rest, soFar + ("oneMR" ->      "true"))
+      case "--inputConverter"  :: inputConv  :: rest => parse(rest, soFar + ("inputConv" ->  inputConv))
+      case "--outputConverter" :: outputConv :: rest => parse(rest, soFar + ("outputConv" -> outputConv))
       case _ :: rest => parse(rest, soFar)
     }
     val parsed = parse(args.toList, Map.empty)
@@ -50,7 +54,16 @@ object MRMultiply extends Configured with Tool {
       ) yield (left, right, output, nDivs)
       
     option match {
-      case Some((left, right, output, nDivs)) => run(left, right, output, nDivs.toInt, parsed.getOrElse("oneMR", "false").toBoolean)
+      case Some((left, right, output, nDivs)) =>
+        run(
+            left,
+            right,
+            output,
+            nDivs.toInt,
+            parsed.getOrElse("oneMR", "false").toBoolean,
+            parsed.get("inputConv"),
+            parsed.get("outputConv")
+            )
       case None => throw new IllegalArgumentException("Expected arguments: --left [path] --right [path] --output [path] --nDivs [int] OR --oneMR")
     }
   }
@@ -69,9 +82,13 @@ object MRMultiply extends Configured with Tool {
     }
   }
   
-  def run(leftStr: String, rightStr: String, outputStr: String, nDivs: Int, oneMR: Boolean): Int = {
+  def run(leftStr: String, rightStr: String, outputStr: String, nDivs: Int, oneMR: Boolean, inputConv: Option[String], outputConv: Option[String]): Int = {
     if (oneMR) {
       getConf().setBoolean(ONE_MR_CONF_FLAG, true)
+    }
+    for (inConv <- inputConv; outConv <- outputConv) {
+      getConf().set(INPUT_CONVERTER_KEY, inConv)
+      getConf().set(OUTPUT_CONVERTER_KEY, outConv)
     }
     val (left, right, output) = (new Path(leftStr), new Path(rightStr), new Path(outputStr))
     val temp = new Path(getConf().get("hadoop.tmp.dir"), "mr_multiply_intermediate_" + UUID.randomUUID().toString())
