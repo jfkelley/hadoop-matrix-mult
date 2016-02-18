@@ -2,7 +2,7 @@
 
 This utility follows the unix philosophy of doing exactly one thing and doing it well: sparse matrix multiplication on Hadoop.
 
-A full explanation of the algorithm involved is available on my website at: [http://www.joefkelley.com/?p=853](http://www.joefkelley.com/?p=853)
+A full explanation of the algorithm involved is available on my website at: [http://www.joefkelley.com/853](http://www.joefkelley.com/853)
 
 The implementation is mostly in Scala, with some small Java portions for performance-sensitive sections (i.e., in-memory submatrix multiplication).
 
